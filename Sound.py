@@ -1,4 +1,3 @@
-import whisper
 import streamlit as st
 import moviepy.editor as mp
 import tempfile
