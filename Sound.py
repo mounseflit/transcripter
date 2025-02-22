@@ -1,6 +1,5 @@
 import openai
 import streamlit as st
-from io import BytesIO
 from dotenv import load_dotenv
 import os
 
@@ -12,8 +11,8 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 
 def transcribe_audio(audio_file):
     try:
-        # Use OpenAI's Whisper API for transcription
-        response = openai.Audio.transcriptions.create(
+        # Use OpenAI's Whisper API for transcription (new API method)
+        response = openai.Audio.create(
             model="whisper-1",  # Whisper model for transcription
             file=audio_file,
             response_format="text"  # Get plain text transcription
