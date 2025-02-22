@@ -1,114 +1,88 @@
 import streamlit as st
-import moviepy
-import tempfile
-import os
-import numpy as np
 import openai
-import wave
+from io import BytesIO
+from moviepy.editor import VideoFileClip
+from pydub import AudioSegment
+import os
+from dotenv import load_dotenv
 
-# Retrieve API key from Streamlit secrets
-openai.api_key = st.secrets["openai"]["api_key"]
+# Load environment variables
+load_dotenv()
 
-# Streamlit UI
-st.title('Video Transcription with Whisper API')
-st.write('Upload a video file and get the transcript')
+# Use the OpenAI API key from the environment
+openai.api_key = os.getenv('OPENAI_API_KEY')
 
-# File uploader for video input
-uploaded_file = st.file_uploader("Choose a video file", type=["mp4", "mov", "avi"])
-
-def chunk_audio(audio_path, max_chunk_size=25 * 1024 * 1024):
-    """
-    Splits the audio into chunks of max_chunk_size bytes (default 25MB).
-    """
-    # Load the audio file
-    audio_clip = moviepy.AudioFileClip(audio_path)
-    audio_array = audio_clip.to_soundarray(fps=16000)  # Whisper works best with 16 kHz sample rate
-
-    # Calculate the number of samples per chunk
-    chunk_length = max_chunk_size // (audio_array.itemsize * audio_array.shape[1])
-
-    # Split the audio array into chunks
-    chunks = []
-    for start in range(0, len(audio_array), chunk_length):
-        chunk = audio_array[start:start + chunk_length]
-        chunks.append(chunk)
-
-    return chunks
-
-def save_chunk_as_wav(chunk, file_path):
-    """
-    Save the audio chunk as a WAV file.
-    """
-    with wave.open(file_path, 'wb') as wf:
-        wf.setnchannels(1)  # Mono audio
-        wf.setsampwidth(2)  # 16-bit audio
-        wf.setframerate(16000)  # Sample rate of Whisper
-        wf.writeframes(chunk.tobytes())
-
-def transcribe_with_whisper_api(audio_chunk_path):
-    """
-    Send the audio chunk to the Whisper API for transcription.
-    """
-    with open(audio_chunk_path, "rb") as audio_file:
+def transcribe_audio(audio_file):
+    try:
+        audio_data = audio_file.getvalue()
         response = openai.Audio.transcribe(
-            model="whisper-1",
-            file=audio_file,
-            language="en"  # Change this to the required language, e.g., 'fr' for French
+            model="whisper-1",  # Whisper model
+            file=BytesIO(audio_data),
+            language='en'  # You can change to another language if needed
         )
         return response['text']
+    except Exception as e:
+        return f"Error: {e}"
 
-if uploaded_file is not None:
-    # Save the uploaded file temporarily
-    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-        tmp_file.write(uploaded_file.read())
-        tmp_file_path = tmp_file.name
+# Extract audio from video
+def extract_audio_from_video(video_file):
+    try:
+        video_path = os.path.join("temp_video.mp4")
+        with open(video_path, "wb") as f:
+            f.write(video_file.getvalue())
 
-    # Extract audio from the video using moviepy
-    video = moviepy.VideoFileClip(tmp_file_path)
-    audio_path = tmp_file_path + "_audio.wav"
-    video.audio.write_audiofile(audio_path)
+        video_clip = VideoFileClip(video_path)
+        audio = video_clip.audio
+        audio_path = "temp_audio.wav"
+        audio.write_audiofile(audio_path)
 
-    # Split audio into chunks to avoid exceeding Whisper API limits
-    audio_chunks = chunk_audio(audio_path)
+        audio_segment = AudioSegment.from_wav(audio_path)
+        os.remove(video_path)  # Clean up video file
+        return audio_segment
+    except Exception as e:
+        return f"Error extracting audio: {e}"
 
-    # Transcribe each chunk and concatenate the results
-    st.write("Transcribing video... Please wait.")
-    full_transcript = ""
-    
-    for idx, chunk in enumerate(audio_chunks):
-        chunk_audio_path = f"{audio_path}_chunk_{idx}.wav"
-        
-        # Save the chunk to a temporary WAV file
-        save_chunk_as_wav(chunk, chunk_audio_path)
+# Split audio if too long
+def split_audio(audio_segment, chunk_length_ms=300000):  # 5 minutes default
+    chunks = []
+    for start_ms in range(0, len(audio_segment), chunk_length_ms):
+        chunk = audio_segment[start_ms:start_ms + chunk_length_ms]
+        chunks.append(chunk)
+    return chunks
 
-        # Transcribe the chunk using Whisper API
-        transcript_chunk = transcribe_with_whisper_api(chunk_audio_path)
-        full_transcript += transcript_chunk + "\n"
+# Streamlit UI
+st.title("Audio and Video Transcription with OpenAI Whisper")
 
-        # Clean up chunk file
-        os.remove(chunk_audio_path)
+# File uploader
+audio_file = st.file_uploader("Upload Audio or Video File", type=["mp3", "mp4", "wav", "m4a"])
 
-    # Create a text document with the transcript
-    transcript = full_transcript
+if audio_file is not None:
+    st.write(f"Transcribing: {audio_file.name}")
 
-    # Display the transcript
-    st.subheader("Transcript")
-    st.text_area("Full Transcript", transcript, height=400)
+    # Handle video files (extract audio)
+    if audio_file.type in ["mp4", "m4a", "mov"]:
+        audio_segment = extract_audio_from_video(audio_file)
+        if isinstance(audio_segment, AudioSegment):
+            st.write("Audio extracted from video.")
+    else:
+        # Handle audio files directly
+        audio_segment = AudioSegment.from_file(audio_file)
 
-    # Save the transcript to a text file
-    transcript_file = tmp_file_path + "_transcript.txt"
-    with open(transcript_file, "w") as f:
-        f.write(transcript)
+    # Split long audio files into chunks
+    chunks = split_audio(audio_segment)
 
-    # Provide a download link for the transcript
-    st.download_button(
-        label="Download Transcript",
-        data=open(transcript_file, "rb").read(),
-        file_name="transcript.txt",
-        mime="text/plain"
-    )
+    transcription = ""
+    for i, chunk in enumerate(chunks):
+        with st.spinner(f"Processing chunk {i + 1}/{len(chunks)}..."):
+            chunk_path = f"temp_chunk_{i}.wav"
+            chunk.export(chunk_path, format="wav")
 
-    # Clean up temporary files
-    os.remove(tmp_file_path)
-    os.remove(audio_path)
-    os.remove(transcript_file)
+            with open(chunk_path, "rb") as f:
+                chunk_file = BytesIO(f.read())
+                transcription += transcribe_audio(chunk_file) + "\n\n"
+            
+            os.remove(chunk_path)  # Clean up temporary chunk file
+
+    # Display transcription
+    st.subheader("Transcription Output")
+    st.text_area("Transcription", transcription, height=500)
