@@ -3,3 +3,4 @@ whisper
 pydub
 ffmpeg
 ffmpeg-python
+requests
