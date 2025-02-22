@@ -1,5 +1,5 @@
 import streamlit as st
-import moviepy.editor as mp
+import moviepy
 import tempfile
 import os
 import numpy as np
@@ -21,7 +21,7 @@ def chunk_audio(audio_path, max_chunk_size=25 * 1024 * 1024):
     Splits the audio into chunks of max_chunk_size bytes (default 25MB).
     """
     # Load the audio file
-    audio_clip = mp.AudioFileClip(audio_path)
+    audio_clip = moviepy.AudioFileClip(audio_path)
     audio_array = audio_clip.to_soundarray(fps=16000)  # Whisper works best with 16 kHz sample rate
 
     # Calculate the number of samples per chunk
@@ -64,7 +64,7 @@ if uploaded_file is not None:
         tmp_file_path = tmp_file.name
 
     # Extract audio from the video using moviepy
-    video = mp.VideoFileClip(tmp_file_path)
+    video = moviepy.VideoFileClip(tmp_file_path)
     audio_path = tmp_file_path + "_audio.wav"
     video.audio.write_audiofile(audio_path)
 
