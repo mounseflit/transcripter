@@ -1,6 +1,5 @@
 streamlit
 openai
 moviepy
-numpy
 pydub
-scipy
+python-dotenv
