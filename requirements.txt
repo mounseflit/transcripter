@@ -1,6 +1,6 @@
 streamlit
-whisper
+openai
+moviepy
+numpy
 pydub
-ffmpeg
-ffmpeg-python
-requests
+scipy
