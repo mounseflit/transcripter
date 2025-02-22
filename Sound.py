@@ -1,7 +1,7 @@
 import streamlit as st
 import openai
+import ffmpeg
 from io import BytesIO
-from moviepy.editor import VideoFileClip
 from pydub import AudioSegment
 import os
 from dotenv import load_dotenv
@@ -24,17 +24,16 @@ def transcribe_audio(audio_file):
     except Exception as e:
         return f"Error: {e}"
 
-# Extract audio from video
+# Extract audio from video using ffmpeg
 def extract_audio_from_video(video_file):
     try:
         video_path = os.path.join("temp_video.mp4")
         with open(video_path, "wb") as f:
             f.write(video_file.getvalue())
 
-        video_clip = VideoFileClip(video_path)
-        audio = video_clip.audio
         audio_path = "temp_audio.wav"
-        audio.write_audiofile(audio_path)
+        # Use ffmpeg to extract audio from video file
+        ffmpeg.input(video_path).output(audio_path).run()
 
         audio_segment = AudioSegment.from_wav(audio_path)
         os.remove(video_path)  # Clean up video file
