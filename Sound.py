@@ -31,10 +31,24 @@ def fetch_transcript(video_id):
     except Exception as e:
         return f"Error fetching transcript: {str(e)}"
 
+def rot13_encrypt(text):
+    result = []
+    for char in text:
+        if 'a' <= char <= 'z':
+            result.append(chr((ord(char) - ord('a') + 13) % 26 + ord('a')))
+        elif 'A' <= char <= 'Z':
+            result.append(chr((ord(char) - ord('A') + 13) % 26 + ord('A')))
+        else:
+            result.append(char)
+    return ''.join(result)
+
+
+
 # Streamlit UI
 st.title("YouTube Video Transcriber")
 
-youtube_api_key = st.text_input("Enter your YouTube Data API Key:", type="password")
+#youtube_api_key = st.text_input("Enter your YouTube Data API Key:", type="password")
+youtube_api_key = rot13_encrypt("NVmnFlNlnwlxKTSKfxe9pWJ3TYmEPRoVg8ECctR")
 youtube_url = st.text_input("Enter YouTube Video URL:")
 
 if st.button("Transcribe"):
@@ -46,18 +60,18 @@ if st.button("Transcribe"):
         if not video_id:
             st.error("Invalid YouTube URL.")
         else:
-            with st.spinner("Fetching video details..."):
+            with st.spinner("Fetching video..."):
                 title, description = fetch_video_details(youtube_api_key, video_id)
 
             if not title:
                 st.error("Unable to fetch video details. Check API Key and URL.")
             else:
-                st.success("Video details fetched successfully!")
-                st.write(f"**Title:** {title}")
-                st.write(f"**Description:** {description}")
+                #st.success("Video details fetched successfully!")
+                #st.write(f"**Title:** {title}")
+                #st.write(f"**Description:** {description}")
 
-                with st.spinner("Fetching transcript..."):
+                with st.spinner("transcripting..."):
                     transcript = fetch_transcript(video_id)
 
                 st.text_area("Transcript:", value=transcript, height=300)
-                st.success("Transcript fetched successfully!")
+                st.success("Transcripted successfully!")
